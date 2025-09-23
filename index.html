@@ -1,1 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Robot Sim Test</title>
+  <style>html,body{height:100%;margin:0}#app{height:100%}</style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <!-- Three.js from CDN -->
+  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
+  <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    const el = document.getElementById('app');
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, el.clientWidth/el.clientHeight, 0.1, 100);
+    camera.position.set(2,1.5,3);
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(el.clientWidth, el.clientHeight);
+    el.appendChild(renderer.domElement);
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(el.clientWidth, el.clientHeight);
+      camera.aspect = el.clientWidth/el.clientHeight;
+      camera.updateProjectionMatrix();
+    });
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshNormalMaterial());
+    scene.add(cube);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+    function animate() {
+      requestAnimationFrame(animate);
+      cube.rotation.y += 0.01;
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
 
