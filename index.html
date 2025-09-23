@@ -2,168 +2,114 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Simple Robot + EEG Simulation</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Human-Robot EEG Simulation</title>
   <style>
     body { margin:0; display:flex; height:100vh; font-family:Arial,Helvetica,sans-serif; }
     #left { flex: 1; display:flex; flex-direction:column; }
-    #canvasContainer { flex: 1; background:#fff; }
+    #canvasContainer { flex: 1; background:#eef; }
     #controls { padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
     #chartContainer { width:420px; padding:10px; background:#fff; border-left:1px solid #ddd; }
-    canvas { display:block; width:100%; height:100%; }
+    canvas { display:block; }
   </style>
 </head>
 <body>
   <div id="left">
     <div id="canvasContainer"></div>
     <div id="controls">
-      <label>Robot speed: <input id="speed" type="range" min="0" max="3" step="0.01" value="0.8"></label>
-      <button id="toggle">Toggle Simulation</button>
+      <label>Task Difficulty: <input id="difficulty" type="range" min="0" max="3" step="0.1" value="1"></label>
+      <button id="toggle">Pause Simulation</button>
     </div>
   </div>
 
   <div id="chartContainer">
-    <h4 style="margin:4px 0;">Simulated EEG / Affect</h4>
+    <h4>Simulated EEG / Affect Signals</h4>
     <canvas id="chart" width="400" height="300"></canvas>
-    <div style="font-size:13px;color:#555;margin-top:8px;">
-      Blue = Focus, Orange = Stress (falls back to a simple chart if Chart.js is blocked)
-    </div>
+    <p style="font-size:13px;color:#555;">Blue=Focus | Orange=Stress | Green=Engagement</p>
   </div>
 
-  <!-- Try CDN scripts; page still works if they fail -->
   <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
   <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
-  // ---------- Three.js scene ----------
+  // --- Setup 3D Scene ---
   const container = document.getElementById('canvasContainer');
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
-  camera.position.set(2.5, 2.5, 4);
+  camera.position.set(3, 2, 5);
 
   const renderer = new THREE.WebGLRenderer({antialias:true});
   container.appendChild(renderer.domElement);
 
   function resize(){
-    const w = container.clientWidth || window.innerWidth;
-    const h = container.clientHeight || (window.innerHeight - 60);
-    renderer.setSize(w, h, false);
-    camera.aspect = w / h;
-    camera.updateProjectionMatrix();
+    const w = container.clientWidth, h = container.clientHeight;
+    renderer.setSize(w, h); camera.aspect = w/h; camera.updateProjectionMatrix();
   }
-  // robust sizing
-  resize();
   new ResizeObserver(resize).observe(container);
-  window.addEventListener('resize', resize);
 
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(5,10,7);
-  scene.add(light);
   scene.add(new THREE.AmbientLight(0x888888));
+  const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(5,10,5);
+  scene.add(light);
 
-  // "robot arm"
-  const base = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.2, 0.6), new THREE.MeshStandardMaterial({color:0x2b6f77}));
-  base.position.set(0,0.1,0); scene.add(base);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.2, 0.2), new THREE.MeshStandardMaterial({color:0xe07a5f}));
-  arm.position.set(0, 0.8, 0); base.add(arm);
-  const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.2), new THREE.MeshStandardMaterial({color:0x6f6f6f}));
-  gripper.position.set(0, 1.0, 0); base.add(gripper);
-  scene.add(new THREE.GridHelper(8, 16, 0x888888, 0x444444));
+  // Simple robot: base + arm + gripper
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.2,0.8), new THREE.MeshStandardMaterial({color:0x2b6f77}));
+  base.position.y=0.1; scene.add(base);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2,1.5,0.2), new THREE.MeshStandardMaterial({color:0xe07a5f}));
+  arm.position.y=0.75; base.add(arm);
+  const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.1,0.2), new THREE.MeshStandardMaterial({color:0x6f6f6f}));
+  gripper.position.y=0.9; arm.add(gripper);
 
   const controls = new THREE.OrbitControls(camera, renderer.domElement);
-  controls.target.set(0,0.5,0); controls.update();
 
-  // ---------- Chart area (Chart.js OR simple fallback) ----------
-  const chartCanvas = document.getElementById('chart');
-  const MAX_POINTS = 80;
-  let chart = null, useChartJS = (typeof Chart !== 'undefined');
-  let simple = null;
+  // --- EEG Chart Setup ---
+  const ctx = document.getElementById('chart').getContext('2d');
+  const MAX_POINTS = 60;
+  const chart = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels:Array(MAX_POINTS).fill(""),
+      datasets:[
+        {label:'Focus', data:Array(MAX_POINTS).fill(0.5), borderColor:'blue', fill:false},
+        {label:'Stress', data:Array(MAX_POINTS).fill(0.5), borderColor:'orange', fill:false},
+        {label:'Engagement', data:Array(MAX_POINTS).fill(0.5), borderColor:'green', fill:false}
+      ]
+    },
+    options:{animation:false, scales:{y:{min:0,max:1}}, plugins:{legend:{display:true}}}
+  });
 
-  if (useChartJS) {
-    const ctx = chartCanvas.getContext('2d');
-    chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: Array.from({length:MAX_POINTS}, (_,i) => i - MAX_POINTS),
-        datasets: [
-          { label:'Focus', data:Array(MAX_POINTS).fill(null), borderColor:'rgba(54,162,235,1)', fill:false, tension:0.2 },
-          { label:'Stress', data:Array(MAX_POINTS).fill(null), borderColor:'rgba(255,159,64,1)', fill:false, tension:0.2 }
-        ]
-      },
-      options: { animation:false, scales:{ y:{ min:0, max:1 } }, plugins:{ legend:{ display:true } } }
-    });
-  } else {
-    // minimal built-in chart so the page works without Chart.js
-    const ctx2d = chartCanvas.getContext('2d');
-    const focus = [], stress = [];
-    function y(v){ const H=chartCanvas.height; return H-10 - v*(H-20); }
-    function draw(){
-      const W=chartCanvas.width, H=chartCanvas.height;
-      ctx2d.clearRect(0,0,W,H);
-      ctx2d.strokeStyle='#ddd'; ctx2d.strokeRect(8,8,W-16,H-16);
-      function line(arr, color){
-        if (!arr.length) return;
-        ctx2d.beginPath();
-        for (let i=0;i<arr.length;i++){
-          const x = 10 + i*((W-20)/MAX_POINTS);
-          const yy = y(arr[i]);
-          if(i===0) ctx2d.moveTo(x,yy); else ctx2d.lineTo(x,yy);
-        }
-        ctx2d.strokeStyle=color; ctx2d.stroke();
-      }
-      line(focus, '#1f77b4'); // blue
-      line(stress, '#ff7f0e'); // orange
-    }
-    simple = {
-      push(f,s){
-        if (focus.length>=MAX_POINTS){ focus.shift(); stress.shift(); }
-        focus.push(f); stress.push(s); draw();
-      }
-    };
-  }
-
-  // ---------- Simulation loop & data ----------
+  // --- Simulation Logic ---
   let running = true;
-  document.getElementById('toggle').onclick = () => {
-    running = !running;
-    document.getElementById('toggle').textContent = running ? 'Pause' : 'Resume';
+  document.getElementById('toggle').onclick=()=>{
+    running=!running;
+    document.getElementById('toggle').textContent = running ? "Pause Simulation":"Resume Simulation";
   };
-  const speedInput = document.getElementById('speed');
 
-  function simulateSignal(time) {
-    const t = time * 0.001;
-    const focus = 0.5 + 0.4 * Math.sin(t * 0.8) + 0.08 * Math.sin(t*5 + 1.3);
-    const stress = 0.45 + 0.35 * Math.cos(t * 0.6 + 0.4) + 0.06 * Math.sin(t*7);
-    return [Math.max(0, Math.min(1, focus)), Math.max(0, Math.min(1, stress))];
+  function simulateEEG(t,difficulty){
+    const focus = 0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty;
+    const stress = 0.4 + 0.4*Math.cos(t*0.0015 + difficulty);
+    const engage= 0.6 + 0.2*Math.sin(t*0.001*difficulty + 2);
+    return [Math.max(0,Math.min(1,focus)), Math.max(0,Math.min(1,stress)), Math.max(0,Math.min(1,engage))];
   }
 
-  function tick(time) {
-    requestAnimationFrame(tick); // always keep animating
-    if (running) {
-      const s = parseFloat(speedInput.value);
-      base.rotation.y += 0.005 * s;
-      arm.rotation.z = 0.2 * Math.sin(time * 0.001 * 1.3 * s);
-      gripper.rotation.x = 0.2 * Math.sin(time * 0.001 * 2.2 * s);
+  function animate(time){
+    requestAnimationFrame(animate);
+    if(running){
+      const diff = parseFloat(document.getElementById('difficulty').value);
+      base.rotation.y += 0.005*diff;
+      arm.rotation.z = 0.3*Math.sin(time*0.001*diff);
+      gripper.rotation.x = 0.2*Math.sin(time*0.002*diff);
 
-      const [f, st] = simulateSignal(time);
-      if (chart) {
-        chart.data.datasets[0].data.push(f);
-        chart.data.datasets[1].data.push(st);
-        if (chart.data.datasets[0].data.length > MAX_POINTS) {
-          chart.data.datasets[0].data.shift();
-          chart.data.datasets[1].data.shift();
-          chart.data.labels.push(chart.data.labels[chart.data.labels.length-1]+1);
-          chart.data.labels.shift();
-        }
-        chart.update('none');
-      } else if (simple) {
-        simple.push(f, st);
-      }
+      const [f,s,e] = simulateEEG(time,diff);
+      chart.data.datasets[0].data.push(f);
+      chart.data.datasets[1].data.push(s);
+      chart.data.datasets[2].data.push(e);
+      chart.data.datasets.forEach(ds=>{ if(ds.data.length>MAX_POINTS) ds.data.shift(); });
+      chart.update("none");
     }
-    renderer.render(scene, camera);
+    renderer.render(scene,camera);
   }
-  requestAnimationFrame(tick);
+  animate(0);
   </script>
 </body>
 </html>
+
