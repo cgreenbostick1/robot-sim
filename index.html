@@ -41,12 +41,15 @@
   const container = document.getElementById('canvasContainer');
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
-  camera.position.set(3, 2, 5);
-  camera.lookAt(0, 0.7, 0);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
+
+  // Camera & background (UPDATED)
+  camera.position.set(4, 3, 6);
+  camera.lookAt(0, 1, 0);
+  renderer.setClearColor(0xf0f0f0);
 
   function resize(){
     const w = container.clientWidth, h = container.clientHeight || 1;
@@ -54,47 +57,43 @@
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
-  // Do an initial resize immediately (don’t wait for observer)
   resize();
-  // Keep resizing as the layout changes
-  if (window.ResizeObserver) {
-    new ResizeObserver(resize).observe(container);
-  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(container);
   window.addEventListener('resize', resize);
 
+  // Lights
   scene.add(new THREE.AmbientLight(0x888888));
   const light = new THREE.DirectionalLight(0xffffff, 1);
   light.position.set(5,10,5);
   scene.add(light);
 
-  // Simple robot: base + arm + gripper
+  // --- Robot (REPLACED with higher-contrast version) ---
   const base = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8,0.2,0.8),
-    new THREE.MeshStandardMaterial({color:0x2b6f77})
+    new THREE.BoxGeometry(1, 0.2, 1),
+    new THREE.MeshStandardMaterial({ color: 0x2b6f77 }) // teal
   );
-  base.position.y = 0.1; scene.add(base);
+  base.position.y = 0.1;
+  scene.add(base);
 
   const arm = new THREE.Mesh(
-    new THREE.BoxGeometry(0.2,1.5,0.2),
-    new THREE.MeshStandardMaterial({color:0xe07a5f})
+    new THREE.BoxGeometry(0.3, 1.5, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x1565c0 }) // strong blue
   );
-  arm.position.y = 0.75; base.add(arm);
+  arm.position.y = 0.75;
+  base.add(arm);
 
   const gripper = new THREE.Mesh(
-    new THREE.BoxGeometry(0.6,0.1,0.2),
-    new THREE.MeshStandardMaterial({color:0x6f6f6f})
+    new THREE.BoxGeometry(0.8, 0.1, 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x222222 }) // dark for contrast
   );
-  gripper.position.y = 0.9; arm.add(gripper);
+  gripper.position.y = 0.9;
+  arm.add(gripper);
 
   // OrbitControls if available (won’t crash if the script failed to load)
   if (THREE.OrbitControls) {
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    // small tick for damping
-    (function tick(){
-      controls.update();
-      requestAnimationFrame(tick);
-    })();
+    (function tick(){ controls.update(); requestAnimationFrame(tick); })();
   }
 
   // --- EEG Chart Setup ---
@@ -119,7 +118,6 @@
     }
   });
 
-  // Make the chart canvas fill the sidebar nicely
   function sizeChartCanvas(){
     const c = document.getElementById('chart');
     c.width  = document.getElementById('chartContainer').clientWidth - 20;
@@ -165,4 +163,5 @@
   </script>
 </body>
 </html>
+
 
