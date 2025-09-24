@@ -5,7 +5,7 @@
   <title>Human-Robot EEG Simulation</title>
   <style>
     body { margin:0; display:flex; height:100vh; font-family:Arial,Helvetica,sans-serif; }
-    #left { flex: 1; display:flex; flex-direction:column; }
+    #left { flex: 1; display:flex; flex-direction:column; min-width:0; }
     #canvasContainer { flex: 1; background:#eef; }
     #controls { padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
     #chartContainer { width:420px; padding:10px; background:#fff; border-left:1px solid #ddd; }
@@ -16,20 +16,25 @@
   <div id="left">
     <div id="canvasContainer"></div>
     <div id="controls">
-      <label>Task Difficulty: <input id="difficulty" type="range" min="0" max="3" step="0.1" value="1"></label>
+      <label>Task Difficulty:
+        <input id="difficulty" type="range" min="0" max="3" step="0.1" value="1">
+      </label>
       <button id="toggle">Pause Simulation</button>
     </div>
   </div>
 
   <div id="chartContainer">
     <h4>Simulated EEG / Affect Signals</h4>
-    <canvas id="chart" width="400" height="300"></canvas>
+    <canvas id="chart"></canvas>
     <p style="font-size:13px;color:#555;">Blue=Focus | Orange=Stress | Green=Engagement</p>
   </div>
 
-  <script src="https://unpkg.com/three@0.152.2/build/three.min.js"></script>
-  <script src="https://unpkg.com/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Three.js -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+  <!-- Try to load OrbitControls (optional). If it fails, we’ll run without it. -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <script>
   // --- Setup 3D Scene ---
@@ -37,76 +42,124 @@
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
   camera.position.set(3, 2, 5);
+  camera.lookAt(0, 0.7, 0);
 
-  const renderer = new THREE.WebGLRenderer({antialias:true});
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
 
   function resize(){
-    const w = container.clientWidth, h = container.clientHeight;
-    renderer.setSize(w, h); camera.aspect = w/h; camera.updateProjectionMatrix();
+    const w = container.clientWidth, h = container.clientHeight || 1;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
   }
-  new ResizeObserver(resize).observe(container);
+  // Do an initial resize immediately (don’t wait for observer)
+  resize();
+  // Keep resizing as the layout changes
+  if (window.ResizeObserver) {
+    new ResizeObserver(resize).observe(container);
+  }
+  window.addEventListener('resize', resize);
 
   scene.add(new THREE.AmbientLight(0x888888));
-  const light = new THREE.DirectionalLight(0xffffff, 1); light.position.set(5,10,5);
+  const light = new THREE.DirectionalLight(0xffffff, 1);
+  light.position.set(5,10,5);
   scene.add(light);
 
   // Simple robot: base + arm + gripper
-  const base = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.2,0.8), new THREE.MeshStandardMaterial({color:0x2b6f77}));
-  base.position.y=0.1; scene.add(base);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.2,1.5,0.2), new THREE.MeshStandardMaterial({color:0xe07a5f}));
-  arm.position.y=0.75; base.add(arm);
-  const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.6,0.1,0.2), new THREE.MeshStandardMaterial({color:0x6f6f6f}));
-  gripper.position.y=0.9; arm.add(gripper);
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8,0.2,0.8),
+    new THREE.MeshStandardMaterial({color:0x2b6f77})
+  );
+  base.position.y = 0.1; scene.add(base);
 
-  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  const arm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.2,1.5,0.2),
+    new THREE.MeshStandardMaterial({color:0xe07a5f})
+  );
+  arm.position.y = 0.75; base.add(arm);
+
+  const gripper = new THREE.Mesh(
+    new THREE.BoxGeometry(0.6,0.1,0.2),
+    new THREE.MeshStandardMaterial({color:0x6f6f6f})
+  );
+  gripper.position.y = 0.9; arm.add(gripper);
+
+  // OrbitControls if available (won’t crash if the script failed to load)
+  if (THREE.OrbitControls) {
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    // small tick for damping
+    (function tick(){
+      controls.update();
+      requestAnimationFrame(tick);
+    })();
+  }
 
   // --- EEG Chart Setup ---
   const ctx = document.getElementById('chart').getContext('2d');
   const MAX_POINTS = 60;
   const chart = new Chart(ctx, {
-    type:'line',
-    data:{
-      labels:Array(MAX_POINTS).fill(""),
-      datasets:[
-        {label:'Focus', data:Array(MAX_POINTS).fill(0.5), borderColor:'blue', fill:false},
-        {label:'Stress', data:Array(MAX_POINTS).fill(0.5), borderColor:'orange', fill:false},
-        {label:'Engagement', data:Array(MAX_POINTS).fill(0.5), borderColor:'green', fill:false}
+    type: 'line',
+    data: {
+      labels: Array(MAX_POINTS).fill(""),
+      datasets: [
+        { label: 'Focus',      data: Array(MAX_POINTS).fill(0.5), borderColor: 'blue',   fill: false, tension: 0.2 },
+        { label: 'Stress',     data: Array(MAX_POINTS).fill(0.5), borderColor: 'orange', fill: false, tension: 0.2 },
+        { label: 'Engagement', data: Array(MAX_POINTS).fill(0.5), borderColor: 'green',  fill: false, tension: 0.2 }
       ]
     },
-    options:{animation:false, scales:{y:{min:0,max:1}}, plugins:{legend:{display:true}}}
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: { y: { min: 0, max: 1 } },
+      plugins: { legend: { display: true } }
+    }
   });
+
+  // Make the chart canvas fill the sidebar nicely
+  function sizeChartCanvas(){
+    const c = document.getElementById('chart');
+    c.width  = document.getElementById('chartContainer').clientWidth - 20;
+    c.height = 300;
+    chart.resize();
+  }
+  sizeChartCanvas();
+  window.addEventListener('resize', sizeChartCanvas);
 
   // --- Simulation Logic ---
   let running = true;
-  document.getElementById('toggle').onclick=()=>{
-    running=!running;
-    document.getElementById('toggle').textContent = running ? "Pause Simulation":"Resume Simulation";
+  document.getElementById('toggle').onclick = () => {
+    running = !running;
+    document.getElementById('toggle').textContent = running ? "Pause Simulation" : "Resume Simulation";
   };
 
-  function simulateEEG(t,difficulty){
-    const focus = 0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty;
-    const stress = 0.4 + 0.4*Math.cos(t*0.0015 + difficulty);
-    const engage= 0.6 + 0.2*Math.sin(t*0.001*difficulty + 2);
-    return [Math.max(0,Math.min(1,focus)), Math.max(0,Math.min(1,stress)), Math.max(0,Math.min(1,engage))];
+  function simulateEEG(t, difficulty){
+    const focus   = 0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty;
+    const stress  = 0.4 + 0.4*Math.cos(t*0.0015 + difficulty);
+    const engage  = 0.6 + 0.2*Math.sin(t*0.001*difficulty + 2);
+    const clamp = v => Math.max(0, Math.min(1, v));
+    return [clamp(focus), clamp(stress), clamp(engage)];
   }
 
   function animate(time){
     requestAnimationFrame(animate);
-    if(running){
+    if (running) {
       const diff = parseFloat(document.getElementById('difficulty').value);
-      base.rotation.y += 0.005*diff;
-      arm.rotation.z = 0.3*Math.sin(time*0.001*diff);
-      gripper.rotation.x = 0.2*Math.sin(time*0.002*diff);
+      base.rotation.y += 0.005 * diff;
+      arm.rotation.z   = 0.3 * Math.sin(time * 0.001 * diff);
+      gripper.rotation.x = 0.2 * Math.sin(time * 0.002 * diff);
 
-      const [f,s,e] = simulateEEG(time,diff);
+      const [f,s,e] = simulateEEG(time, diff);
       chart.data.datasets[0].data.push(f);
       chart.data.datasets[1].data.push(s);
       chart.data.datasets[2].data.push(e);
-      chart.data.datasets.forEach(ds=>{ if(ds.data.length>MAX_POINTS) ds.data.shift(); });
+      chart.data.datasets.forEach(ds => { if (ds.data.length > MAX_POINTS) ds.data.shift(); });
       chart.update("none");
     }
-    renderer.render(scene,camera);
+    renderer.render(scene, camera);
   }
   animate(0);
   </script>
