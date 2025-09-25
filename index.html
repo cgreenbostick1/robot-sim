@@ -19,13 +19,14 @@
     }
     #chart{ background:#fff; display:block; }
 
-    /* RIGHT: fixed sidebar for 3D + controls */
+    /* RIGHT: fixed sidebar for 3D + controls (blue) */
     #right{
       width:420px; min-width:420px; display:flex; flex-direction:column;
-      background:#fff; border-left:1px solid #ddd;
+      background:#174f96; border-left:1px solid #0f3570;
     }
-    #canvasContainer{ flex:1; background:#eef; }
-    #controls{ padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
+    #canvasContainer{ flex:1; }
+    #controls{ padding:10px; background:#0f3570; border-top:1px solid #0a2855; color:#dfe8ff; }
+    #controls label { margin-right:10px; }
 
     canvas { display:block; }
   </style>
@@ -70,9 +71,11 @@
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
 
-  camera.position.set(4,3,6);
-  camera.lookAt(0,1,0);
-  renderer.setClearColor(0xf0f0f0);
+  // Blue background to match sidebar
+  renderer.setClearColor(0x174f96);
+
+  camera.position.set(0, 1.2, 4);
+  camera.lookAt(0, 0.9, 0);
 
   function resize3D(){
     const w = container.clientWidth, h = container.clientHeight || 1;
@@ -86,24 +89,41 @@
 
   // Lights
   scene.add(new THREE.AmbientLight(0x888888));
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(5,10,5); scene.add(light);
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0); keyLight.position.set(4, 6, 8); scene.add(keyLight);
+  const rimLight = new THREE.DirectionalLight(0x99ccff, 0.6); rimLight.position.set(-6, 4, -3); scene.add(rimLight);
 
-  // Simple "headset/robot" stand-in
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1,0.2,1), new THREE.MeshStandardMaterial({color:0x2b6f77}));
-  base.position.y = 0.1; scene.add(base);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3,1.5,0.3), new THREE.MeshStandardMaterial({color:0x1565c0}));
-  arm.position.y = 0.75; base.add(arm);
-  const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.1,0.2), new THREE.MeshStandardMaterial({color:0x222222}));
-  gripper.position.y = 0.9; arm.add(gripper);
+  // ---------- Stylized 3D Headset ----------
+  const headset = new THREE.Group(); scene.add(headset);
+  const metal = new THREE.MeshStandardMaterial({ color: 0x222428, metalness: 0.6, roughness: 0.35 });
+  const matte = new THREE.MeshStandardMaterial({ color: 0x2b6f77, metalness: 0.2, roughness: 0.8 });
+  const foam  = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.1, roughness: 0.9 });
 
-  if (THREE.OrbitControls) {
-    const controls = new THREE.OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    (function tick(){ controls.update(); requestAnimationFrame(tick); })();
-  }
+  // Headband
+  const band = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.08, 16, 100, Math.PI), metal);
+  band.rotation.x = Math.PI / 2; band.position.y = 1.2; headset.add(band);
+  // Cushion
+  const cushion = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.1), foam);
+  cushion.position.set(0, 1.25, 0); headset.add(cushion);
+  // Ear cups + pads
+  const cupGeom = new THREE.CylinderGeometry(0.45, 0.45, 0.25, 24);
+  const cupL = new THREE.Mesh(cupGeom, metal); cupL.rotation.z = Math.PI / 2; cupL.position.set(-0.95, 0.7, 0); headset.add(cupL);
+  const padL = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.08, 12, 24), foam); padL.rotation.y = Math.PI / 2; padL.position.set(-0.95, 0.7, 0); headset.add(padL);
+  const cupR = cupL.clone(); cupR.position.x = 0.95; headset.add(cupR);
+  const padR = padL.clone(); padR.position.x = 0.95; headset.add(padR);
+  // Arms
+  const armGeom = new THREE.BoxGeometry(0.08, 0.6, 0.08);
+  const armL = new THREE.Mesh(armGeom, matte); armL.position.set(-0.95, 1.0, 0); headset.add(armL);
+  const armR = armL.clone(); armR.position.x = 0.95; headset.add(armR);
+  // Mic boom
+  const mic = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.8, 4, 8), matte);
+  mic.rotation.z = -Math.PI / 3; mic.position.set(0.2, 0.55, 0.35); headset.add(mic);
+  // Simple stand
+  const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.1, 32), new THREE.MeshStandardMaterial({ color: 0x0e2f5e, metalness: 0.1, roughness: 0.9 }));
+  standBase.position.y = 0.05; scene.add(standBase);
+  const standPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 16), metal);
+  standPost.position.y = 0.6; scene.add(standPost);
 
-  /* --------------------- CHART (LEFT BIG PANE) --------------------- */
+  /* --------------------- CHART (LEFT) --------------------- */
   const chartCanvas = document.getElementById('chart');
   const MAX_POINTS = 60;
   const chart = new Chart(chartCanvas.getContext('2d'), {
@@ -136,14 +156,8 @@
   if (window.ResizeObserver) new ResizeObserver(sizeChart).observe(document.getElementById('chartWrap'));
   window.addEventListener('resize', sizeChart);
 
-  /* --------------------- SIMULATION --------------------- */
-  let running = true;
-  document.getElementById('toggle').onclick = () => {
-    running = !running;
-    document.getElementById('toggle').textContent = running ? "Pause Simulation" : "Resume Simulation";
-  };
-
-  const clamp01 = v => Math.max(0, Math.min(1, v));
+  /* --------------------- SIGNAL SIMULATION --------------------- */
+  function clamp01(v){ return Math.max(0, Math.min(1, v)); }
 
   // 6 signals: Focus, Stress, Engagement, Interest, Excitement, Relaxation
   function simulateSignals(t, difficulty){
@@ -156,17 +170,27 @@
     return [focus, stress, engage, interest, excitement, relaxation];
   }
 
+  /* --------------------- MASTER LOOP --------------------- */
+  let running = true;
+  document.getElementById('toggle').onclick = () => {
+    running = !running;
+    document.getElementById('toggle').textContent = running ? "Pause Simulation" : "Resume Simulation";
+  };
+
   function animate(time){
     requestAnimationFrame(animate);
+
+    // Headset idle animation
+    const t = time * 0.001;
+    headset.rotation.y = t * 0.6;                          // slow spin
+    headset.position.y = 0.05 + Math.sin(t*1.5) * 0.03;    // gentle bob
+    // mic tiny waggle
+    mic.rotation.y = -Math.PI/12 + Math.sin(t*2.2) * 0.08;
+
     if (running){
       const diff = parseFloat(document.getElementById('difficulty').value);
 
-      // 3D motion
-      base.rotation.y += 0.005 * diff;
-      arm.rotation.z   = 0.3 * Math.sin(time * 0.001 * diff);
-      gripper.rotation.x = 0.2 * Math.sin(time * 0.002 * diff);
-
-      // Update all 6 chart series
+      // Update chart
       const values = simulateSignals(time, diff);
       chart.data.datasets.forEach((ds, i) => {
         ds.data.push(values[i]);
@@ -174,6 +198,7 @@
       });
       chart.update("none");
     }
+
     renderer.render(scene, camera);
   }
   animate(0);
