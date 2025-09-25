@@ -6,32 +6,31 @@
   <style>
     body { margin:0; display:flex; height:100vh; font-family:Arial,Helvetica,sans-serif; }
 
-    /* Sidebar with the 3D headset (RIGHT) — CHANGED */
+    /* RIGHT: fixed-width sidebar for 3D + controls */
     #left {
-      flex: 0 0 420px;              /* CHANGED: fixed width */
-      width: 420px;                 /* CHANGED */
+      flex: 0 0 420px;
+      width: 420px;
+      min-width: 420px;
       display:flex;
       flex-direction:column;
-      min-width:420px;              /* CHANGED: prevents shrinking */
-      border-left:1px solid #ddd;   /* CHANGED: divider between panes */
+      border-left:1px solid #ddd;  /* divider */
       background:#fff;
     }
-
-    /* Big pane with the chart (LEFT) — CHANGED */
-    #chartContainer {
-      flex: 1;                      /* CHANGED: chart fills remaining space */
-      width: auto;                  /* CHANGED */
-      padding:10px;
-      background:#174f96;           /* optional: blue background */
-      /* remove old border-left */
-    }
-
-    /* Keep these as-is */
     #canvasContainer { flex: 1; background:#eef; }
     #controls { padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
+
+    /* LEFT: big chart area (white background) */
+    #chartContainer {
+      flex: 1;
+      width: auto;
+      padding:10px;
+      background:#fff;            /* white, as requested */
+    }
+    h4 { margin:0 0 8px 0; color:#222; }
+    #chartContainer p { color:#555; }
+    #chart { background:#fff; }   /* ensure the canvas itself is white */
+
     canvas { display:block; }
-    h4 { margin:0 0 8px 0; color:#fff; } /* chart title visible on blue */
-    #chartContainer p { color:#dfe8ff; } /* legend color on blue */
   </style>
 </head>
 <body>
@@ -50,7 +49,7 @@
   <div id="chartContainer">
     <h4>Simulated EEG / Affect Signals</h4>
     <canvas id="chart"></canvas>
-    <p style="font-size:13px;">Blue=Focus | Orange=Stress | Green=Engagement</p>
+    <p style="font-size:13px;">Blue = Focus | Orange = Stress | Green = Engagement</p>
   </div>
 
   <!-- Three.js -->
@@ -60,7 +59,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <script>
-  // --- Setup 3D Scene (RIGHT SIDEBAR) ---
+  /* --------------------- THREE.JS (RIGHT SIDEBAR) --------------------- */
   const container = document.getElementById('canvasContainer');
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
@@ -72,7 +71,7 @@
   // Camera & background
   camera.position.set(4, 3, 6);
   camera.lookAt(0, 1, 0);
-  renderer.setClearColor(0xf0f0f0);
+  renderer.setClearColor(0xf0f0f0); // light gray looks nice against white page
 
   function resize3D(){
     const w = container.clientWidth, h = container.clientHeight || 1;
@@ -90,14 +89,23 @@
   light.position.set(5,10,5);
   scene.add(light);
 
-  // Robot
-  const base = new THREE.Mesh(new THREE.BoxGeometry(1, 0.2, 1), new THREE.MeshStandardMaterial({ color: 0x2b6f77 }));
+  // Simple robot
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(1, 0.2, 1),
+    new THREE.MeshStandardMaterial({ color: 0x2b6f77 })
+  );
   base.position.y = 0.1; scene.add(base);
 
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.5, 0.3), new THREE.MeshStandardMaterial({ color: 0x1565c0 }));
+  const arm = new THREE.Mesh(
+    new THREE.BoxGeometry(0.3, 1.5, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0x1565c0 })
+  );
   arm.position.y = 0.75; base.add(arm);
 
-  const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  const gripper = new THREE.Mesh(
+    new THREE.BoxGeometry(0.8, 0.1, 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x222222 })
+  );
   gripper.position.y = 0.9; arm.add(gripper);
 
   if (THREE.OrbitControls) {
@@ -106,7 +114,7 @@
     (function tick(){ controls.update(); requestAnimationFrame(tick); })();
   }
 
-  // --- Chart (LEFT BIG PANE) ---
+  /* --------------------- CHART (LEFT BIG PANE) --------------------- */
   const ctx = document.getElementById('chart').getContext('2d');
   const MAX_POINTS = 60;
   const chart = new Chart(ctx, {
@@ -120,7 +128,7 @@
       ]
     },
     options: {
-      responsive: false,            // we size it manually to fill the pane
+      responsive: false,            // we'll size it to fill the pane
       maintainAspectRatio: false,
       animation: false,
       scales: { y: { min: 0, max: 1 } },
@@ -128,23 +136,21 @@
     }
   });
 
-  // Fill the big pane — CHANGED: use container height instead of fixed 300px
+  // Fill the big pane
   function sizeChartCanvas(){
     const parent = document.getElementById('chartContainer');
-    const titleHeight = 26;   // rough room for <h4>
-    const legendHeight = 22;  // rough room for <p>
-    const padding = 20;       // inner padding from CSS
-    const availableH = Math.max(150, parent.clientHeight - titleHeight - legendHeight - padding);
+    // leave some room for title/legend
+    const titleH = 28, legendH = 22, pad = 16;
     const c = document.getElementById('chart');
-    c.width  = parent.clientWidth  - 20;
-    c.height = availableH;
+    c.width  = parent.clientWidth  - pad;
+    c.height = Math.max(150, parent.clientHeight - titleH - legendH - pad);
     chart.resize();
   }
   sizeChartCanvas();
   if (window.ResizeObserver) new ResizeObserver(sizeChartCanvas).observe(document.getElementById('chartContainer'));
   window.addEventListener('resize', sizeChartCanvas);
 
-  // --- Simulation Logic ---
+  /* --------------------- SIMULATION --------------------- */
   let running = true;
   document.getElementById('toggle').onclick = () => {
     running = !running;
@@ -163,9 +169,9 @@
     requestAnimationFrame(animate);
     if (running) {
       const diff = parseFloat(document.getElementById('difficulty').value);
-      base.rotation.y += 0.005 * diff;
-      arm.rotation.z   = 0.3 * Math.sin(time * 0.001 * diff);
-      gripper.rotation.x = 0.2 * Math.sin(time * 0.002 * diff);
+      base.rotation.y      += 0.005 * diff;
+      arm.rotation.z        = 0.3 * Math.sin(time * 0.001 * diff);
+      gripper.rotation.x    = 0.2 * Math.sin(time * 0.002 * diff);
 
       const [f,s,e] = simulateEEG(time, diff);
       chart.data.datasets[0].data.push(f);
@@ -180,3 +186,4 @@
   </script>
 </body>
 </html>
+
