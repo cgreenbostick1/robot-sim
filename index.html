@@ -6,54 +6,37 @@
   <style>
     body { margin:0; display:flex; height:100vh; font-family:Arial,Helvetica,sans-serif; }
 
-    /* LEFT: big chart pane */
-    #chartPane {
-      flex: 1;
+    /* Sidebar with the 3D headset (RIGHT) — CHANGED */
+    #left {
+      flex: 0 0 420px;              /* CHANGED: fixed width */
+      width: 420px;                 /* CHANGED */
       display:flex;
       flex-direction:column;
-      min-width:0;
-      padding:10px;
-      background:#174f96; /* blue side */
-      color:#fff;
-      gap:8px;
-    }
-    #chartPane h4 { margin:0 0 4px 0; }
-    #chartWrap {
-      flex:1;
-      background:#fff;   /* chart sits on white for contrast */
-      border-radius:6px;
-      padding:10px;
-      overflow:hidden;
-    }
-    #legend { font-size:13px; color:#dfe8ff; }
-
-    /* RIGHT: smaller sidebar for 3D + controls */
-    #right {
-      width:420px;
-      display:flex;
-      flex-direction:column;
+      min-width:420px;              /* CHANGED: prevents shrinking */
+      border-left:1px solid #ddd;   /* CHANGED: divider between panes */
       background:#fff;
-      border-left:1px solid #ddd;
     }
+
+    /* Big pane with the chart (LEFT) — CHANGED */
+    #chartContainer {
+      flex: 1;                      /* CHANGED: chart fills remaining space */
+      width: auto;                  /* CHANGED */
+      padding:10px;
+      background:#174f96;           /* optional: blue background */
+      /* remove old border-left */
+    }
+
+    /* Keep these as-is */
     #canvasContainer { flex: 1; background:#eef; }
     #controls { padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
-
     canvas { display:block; }
+    h4 { margin:0 0 8px 0; color:#fff; } /* chart title visible on blue */
+    #chartContainer p { color:#dfe8ff; } /* legend color on blue */
   </style>
 </head>
 <body>
-
-  <!-- LEFT (big): Chart -->
-  <div id="chartPane">
-    <h4>Simulated EEG / Affect Signals</h4>
-    <div id="chartWrap">
-      <canvas id="chart"></canvas>
-    </div>
-    <p id="legend">Blue = Focus &nbsp;|&nbsp; Orange = Stress &nbsp;|&nbsp; Green = Engagement</p>
-  </div>
-
-  <!-- RIGHT (small): 3D + controls -->
-  <div id="right">
+  <!-- RIGHT (fixed 420px): 3D + controls -->
+  <div id="left">
     <div id="canvasContainer"></div>
     <div id="controls">
       <label>Task Difficulty:
@@ -63,6 +46,13 @@
     </div>
   </div>
 
+  <!-- LEFT (flex:1): Big chart area -->
+  <div id="chartContainer">
+    <h4>Simulated EEG / Affect Signals</h4>
+    <canvas id="chart"></canvas>
+    <p style="font-size:13px;">Blue=Focus | Orange=Stress | Green=Engagement</p>
+  </div>
+
   <!-- Three.js -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
@@ -70,7 +60,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <script>
-  /* --------------------- THREE.JS (RIGHT SIDEBAR) --------------------- */
+  // --- Setup 3D Scene (RIGHT SIDEBAR) ---
   const container = document.getElementById('canvasContainer');
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
@@ -101,26 +91,14 @@
   scene.add(light);
 
   // Robot
-  const base = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.2, 1),
-    new THREE.MeshStandardMaterial({ color: 0x2b6f77 })
-  );
-  base.position.y = 0.1;
-  scene.add(base);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1, 0.2, 1), new THREE.MeshStandardMaterial({ color: 0x2b6f77 }));
+  base.position.y = 0.1; scene.add(base);
 
-  const arm = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 1.5, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x1565c0 })
-  );
-  arm.position.y = 0.75;
-  base.add(arm);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3, 1.5, 0.3), new THREE.MeshStandardMaterial({ color: 0x1565c0 }));
+  arm.position.y = 0.75; base.add(arm);
 
-  const gripper = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 0.1, 0.2),
-    new THREE.MeshStandardMaterial({ color: 0x222222 })
-  );
-  gripper.position.y = 0.9;
-  arm.add(gripper);
+  const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.2), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  gripper.position.y = 0.9; arm.add(gripper);
 
   if (THREE.OrbitControls) {
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -128,10 +106,10 @@
     (function tick(){ controls.update(); requestAnimationFrame(tick); })();
   }
 
-  /* --------------------- CHART (LEFT BIG PANE) --------------------- */
-  const chartCanvas = document.getElementById('chart');
+  // --- Chart (LEFT BIG PANE) ---
+  const ctx = document.getElementById('chart').getContext('2d');
   const MAX_POINTS = 60;
-  const chart = new Chart(chartCanvas.getContext('2d'), {
+  const chart = new Chart(ctx, {
     type: 'line',
     data: {
       labels: Array(MAX_POINTS).fill(""),
@@ -142,7 +120,7 @@
       ]
     },
     options: {
-      responsive: false,             // we'll size it ourselves to fill the pane
+      responsive: false,            // we size it manually to fill the pane
       maintainAspectRatio: false,
       animation: false,
       scales: { y: { min: 0, max: 1 } },
@@ -150,18 +128,23 @@
     }
   });
 
+  // Fill the big pane — CHANGED: use container height instead of fixed 300px
   function sizeChartCanvas(){
-    const wrap = document.getElementById('chartWrap');
-    // fill the white card
-    chartCanvas.width  = wrap.clientWidth - 20;
-    chartCanvas.height = wrap.clientHeight - 20;
+    const parent = document.getElementById('chartContainer');
+    const titleHeight = 26;   // rough room for <h4>
+    const legendHeight = 22;  // rough room for <p>
+    const padding = 20;       // inner padding from CSS
+    const availableH = Math.max(150, parent.clientHeight - titleHeight - legendHeight - padding);
+    const c = document.getElementById('chart');
+    c.width  = parent.clientWidth  - 20;
+    c.height = availableH;
     chart.resize();
   }
   sizeChartCanvas();
-  if (window.ResizeObserver) new ResizeObserver(sizeChartCanvas).observe(document.getElementById('chartWrap'));
+  if (window.ResizeObserver) new ResizeObserver(sizeChartCanvas).observe(document.getElementById('chartContainer'));
   window.addEventListener('resize', sizeChartCanvas);
 
-  /* --------------------- SIMULATION --------------------- */
+  // --- Simulation Logic ---
   let running = true;
   document.getElementById('toggle').onclick = () => {
     running = !running;
