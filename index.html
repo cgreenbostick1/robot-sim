@@ -4,38 +4,58 @@
   <meta charset="utf-8" />
   <title>Human-Robot EEG Simulation</title>
   <style>
-    body { margin:0; display:flex; height:100vh; font-family:Arial,Helvetica,sans-serif; }
+    body { margin:0; display:flex; height:100vh; font-family:Arial,Helvetica,sans-serif; background:#fff; }
 
-    /* RIGHT: fixed-width sidebar for 3D + controls */
-    #left {
-      flex: 0 0 420px;
-      width: 420px;
-      min-width: 420px;
+    /* LEFT: big chart area (white) */
+    #chartPane{
+      flex:1;
       display:flex;
       flex-direction:column;
-      border-left:1px solid #ddd;  /* divider */
+      padding:16px;
+      gap:8px;
       background:#fff;
+      min-width:0;          /* allow flex child to shrink properly */
     }
-    #canvasContainer { flex: 1; background:#eef; }
-    #controls { padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
-
-    /* LEFT: big chart area (white background) */
-    #chartContainer {
-      flex: 1;
-      width: auto;
+    #chartPane h4{ margin:0; color:#222; }
+    #legend{ margin:0; color:#555; font-size:13px; }
+    #chartWrap{
+      flex:1;
+      background:#fff;
+      border:1px solid #e5e7eb;
+      border-radius:8px;
       padding:10px;
-      background:#fff;            /* white, as requested */
+      overflow:hidden;
     }
-    h4 { margin:0 0 8px 0; color:#222; }
-    #chartContainer p { color:#555; }
-    #chart { background:#fff; }   /* ensure the canvas itself is white */
+    #chart{ background:#fff; display:block; }
+
+    /* RIGHT: fixed sidebar for 3D + controls */
+    #right{
+      width:420px;
+      min-width:420px;
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border-left:1px solid #ddd;
+    }
+    #canvasContainer{ flex:1; background:#eef; }
+    #controls{ padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
 
     canvas { display:block; }
   </style>
 </head>
 <body>
-  <!-- RIGHT (fixed 420px): 3D + controls -->
-  <div id="left">
+
+  <!-- LEFT (chart FIRST so it appears on the left) -->
+  <div id="chartPane">
+    <h4>Simulated EEG / Affect Signals</h4>
+    <div id="chartWrap">
+      <canvas id="chart"></canvas>
+    </div>
+    <p id="legend">Blue = Focus | Orange = Stress | Green = Engagement</p>
+  </div>
+
+  <!-- RIGHT (3D headset + controls) -->
+  <div id="right">
     <div id="canvasContainer"></div>
     <div id="controls">
       <label>Task Difficulty:
@@ -43,13 +63,6 @@
       </label>
       <button id="toggle">Pause Simulation</button>
     </div>
-  </div>
-
-  <!-- LEFT (flex:1): Big chart area -->
-  <div id="chartContainer">
-    <h4>Simulated EEG / Affect Signals</h4>
-    <canvas id="chart"></canvas>
-    <p style="font-size:13px;">Blue = Focus | Orange = Stress | Green = Engagement</p>
   </div>
 
   <!-- Three.js -->
@@ -64,14 +77,13 @@
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
 
-  // Camera & background
-  camera.position.set(4, 3, 6);
-  camera.lookAt(0, 1, 0);
-  renderer.setClearColor(0xf0f0f0); // light gray looks nice against white page
+  camera.position.set(4,3,6);
+  camera.lookAt(0,1,0);
+  renderer.setClearColor(0xf0f0f0);
 
   function resize3D(){
     const w = container.clientWidth, h = container.clientHeight || 1;
@@ -83,29 +95,18 @@
   if (window.ResizeObserver) new ResizeObserver(resize3D).observe(container);
   window.addEventListener('resize', resize3D);
 
-  // Lights
   scene.add(new THREE.AmbientLight(0x888888));
   const light = new THREE.DirectionalLight(0xffffff, 1);
   light.position.set(5,10,5);
   scene.add(light);
 
-  // Simple robot
-  const base = new THREE.Mesh(
-    new THREE.BoxGeometry(1, 0.2, 1),
-    new THREE.MeshStandardMaterial({ color: 0x2b6f77 })
-  );
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1,0.2,1), new THREE.MeshStandardMaterial({color:0x2b6f77}));
   base.position.y = 0.1; scene.add(base);
 
-  const arm = new THREE.Mesh(
-    new THREE.BoxGeometry(0.3, 1.5, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x1565c0 })
-  );
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3,1.5,0.3), new THREE.MeshStandardMaterial({color:0x1565c0}));
   arm.position.y = 0.75; base.add(arm);
 
-  const gripper = new THREE.Mesh(
-    new THREE.BoxGeometry(0.8, 0.1, 0.2),
-    new THREE.MeshStandardMaterial({ color: 0x222222 })
-  );
+  const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.1,0.2), new THREE.MeshStandardMaterial({color:0x222222}));
   gripper.position.y = 0.9; arm.add(gripper);
 
   if (THREE.OrbitControls) {
@@ -115,20 +116,20 @@
   }
 
   /* --------------------- CHART (LEFT BIG PANE) --------------------- */
-  const ctx = document.getElementById('chart').getContext('2d');
+  const chartCanvas = document.getElementById('chart');
   const MAX_POINTS = 60;
-  const chart = new Chart(ctx, {
+  const chart = new Chart(chartCanvas.getContext('2d'), {
     type: 'line',
     data: {
       labels: Array(MAX_POINTS).fill(""),
       datasets: [
-        { label: 'Focus',      data: Array(MAX_POINTS).fill(0.5), borderColor: 'blue',   fill: false, tension: 0.2 },
-        { label: 'Stress',     data: Array(MAX_POINTS).fill(0.5), borderColor: 'orange', fill: false, tension: 0.2 },
-        { label: 'Engagement', data: Array(MAX_POINTS).fill(0.5), borderColor: 'green',  fill: false, tension: 0.2 }
+        { label: 'Focus',      data: Array(MAX_POINTS).fill(0.5), borderColor:'blue',   fill:false, tension:0.2 },
+        { label: 'Stress',     data: Array(MAX_POINTS).fill(0.5), borderColor:'orange', fill:false, tension:0.2 },
+        { label: 'Engagement', data: Array(MAX_POINTS).fill(0.5), borderColor:'green',  fill:false, tension:0.2 }
       ]
     },
     options: {
-      responsive: false,            // we'll size it to fill the pane
+      responsive: false,            // we size it to fill the card
       maintainAspectRatio: false,
       animation: false,
       scales: { y: { min: 0, max: 1 } },
@@ -136,19 +137,15 @@
     }
   });
 
-  // Fill the big pane
-  function sizeChartCanvas(){
-    const parent = document.getElementById('chartContainer');
-    // leave some room for title/legend
-    const titleH = 28, legendH = 22, pad = 16;
-    const c = document.getElementById('chart');
-    c.width  = parent.clientWidth  - pad;
-    c.height = Math.max(150, parent.clientHeight - titleH - legendH - pad);
+  function sizeChart(){
+    const wrap = document.getElementById('chartWrap');
+    chartCanvas.width  = wrap.clientWidth  - 20;
+    chartCanvas.height = wrap.clientHeight - 20;
     chart.resize();
   }
-  sizeChartCanvas();
-  if (window.ResizeObserver) new ResizeObserver(sizeChartCanvas).observe(document.getElementById('chartContainer'));
-  window.addEventListener('resize', sizeChartCanvas);
+  sizeChart();
+  if (window.ResizeObserver) new ResizeObserver(sizeChart).observe(document.getElementById('chartWrap'));
+  window.addEventListener('resize', sizeChart);
 
   /* --------------------- SIMULATION --------------------- */
   let running = true;
@@ -167,11 +164,11 @@
 
   function animate(time){
     requestAnimationFrame(animate);
-    if (running) {
+    if (running){
       const diff = parseFloat(document.getElementById('difficulty').value);
-      base.rotation.y      += 0.005 * diff;
-      arm.rotation.z        = 0.3 * Math.sin(time * 0.001 * diff);
-      gripper.rotation.x    = 0.2 * Math.sin(time * 0.002 * diff);
+      base.rotation.y += 0.005 * diff;
+      arm.rotation.z   = 0.3 * Math.sin(time * 0.001 * diff);
+      gripper.rotation.x = 0.2 * Math.sin(time * 0.002 * diff);
 
       const [f,s,e] = simulateEEG(time, diff);
       chart.data.datasets[0].data.push(f);
@@ -186,5 +183,3 @@
   </script>
 </body>
 </html>
-
-
