@@ -14,7 +14,7 @@
       padding:16px;
       gap:8px;
       background:#fff;
-      min-width:0;          /* allow flex child to shrink properly */
+      min-width:0;
     }
     #chartPane h4{ margin:0; color:#222; }
     #legend{ margin:0; color:#555; font-size:13px; }
@@ -51,7 +51,9 @@
     <div id="chartWrap">
       <canvas id="chart"></canvas>
     </div>
-    <p id="legend">Blue = Focus | Orange = Stress | Green = Engagement</p>
+    <p id="legend">
+      Blue = Focus | Orange = Stress | Green = Engagement | Purple = Interest | Red = Excitement | Teal = Relaxation
+    </p>
   </div>
 
   <!-- RIGHT (3D headset + controls) -->
@@ -123,9 +125,12 @@
     data: {
       labels: Array(MAX_POINTS).fill(""),
       datasets: [
-        { label: 'Focus',      data: Array(MAX_POINTS).fill(0.5), borderColor:'blue',   fill:false, tension:0.2 },
-        { label: 'Stress',     data: Array(MAX_POINTS).fill(0.5), borderColor:'orange', fill:false, tension:0.2 },
-        { label: 'Engagement', data: Array(MAX_POINTS).fill(0.5), borderColor:'green',  fill:false, tension:0.2 }
+        { label: 'Focus',       data: Array(MAX_POINTS).fill(0.5), borderColor:'blue',      fill:false, tension:0.2 },
+        { label: 'Stress',      data: Array(MAX_POINTS).fill(0.5), borderColor:'orange',    fill:false, tension:0.2 },
+        { label: 'Engagement',  data: Array(MAX_POINTS).fill(0.5), borderColor:'green',     fill:false, tension:0.2 },
+        { label: 'Interest',    data: Array(MAX_POINTS).fill(0.5), borderColor:'#7e57c2',   fill:false, tension:0.2 }, // purple
+        { label: 'Excitement',  data: Array(MAX_POINTS).fill(0.5), borderColor:'#e53935',   fill:false, tension:0.2 }, // red
+        { label: 'Relaxation',  data: Array(MAX_POINTS).fill(0.5), borderColor:'#00897b',   fill:false, tension:0.2 }  // teal
       ]
     },
     options: {
@@ -154,27 +159,40 @@
     document.getElementById('toggle').textContent = running ? "Pause Simulation" : "Resume Simulation";
   };
 
-  function simulateEEG(t, difficulty){
-    const focus   = 0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty;
-    const stress  = 0.4 + 0.4*Math.cos(t*0.0015 + difficulty);
-    const engage  = 0.6 + 0.2*Math.sin(t*0.001*difficulty + 2);
-    const clamp = v => Math.max(0, Math.min(1, v));
-    return [clamp(focus), clamp(stress), clamp(engage)];
+  // Helper clamp
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+
+  // Simulate 6 signals (Focus, Stress, Engagement, Interest, Excitement, Relaxation)
+  function simulateSignals(t, difficulty){
+    // Base three (as before)
+    const focus  = clamp01(0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty);
+    const stress = clamp01(0.4 + 0.4*Math.cos(t*0.0015 + difficulty));
+    const engage = clamp01(0.6 + 0.2*Math.sin(t*0.001*difficulty + 2));
+
+    // New derived ones—loosely related to the above, just for demo
+    const interest   = clamp01(0.5 + 0.25*Math.sin(t*0.0013 + difficulty*0.5) + 0.10*(engage - stress));
+    const excitement = clamp01(0.5 + 0.35*Math.sin(t*0.003 + 1.2) + 0.05*difficulty);
+    const relaxation = clamp01(0.6 - 0.30*stress + 0.10*(1 - focus)); // calmer when stress low & focus moderate
+
+    return [focus, stress, engage, interest, excitement, relaxation];
   }
 
   function animate(time){
     requestAnimationFrame(animate);
     if (running){
       const diff = parseFloat(document.getElementById('difficulty').value);
+
+      // 3D motion
       base.rotation.y += 0.005 * diff;
       arm.rotation.z   = 0.3 * Math.sin(time * 0.001 * diff);
       gripper.rotation.x = 0.2 * Math.sin(time * 0.002 * diff);
 
-      const [f,s,e] = simulateEEG(time, diff);
-      chart.data.datasets[0].data.push(f);
-      chart.data.datasets[1].data.push(s);
-      chart.data.datasets[2].data.push(e);
-      chart.data.datasets.forEach(ds => { if (ds.data.length > MAX_POINTS) ds.data.shift(); });
+      // Update all 6 chart series
+      const values = simulateSignals(time, diff);
+      chart.data.datasets.forEach((ds, i) => {
+        ds.data.push(values[i]);
+        if (ds.data.length > MAX_POINTS) ds.data.shift();
+      });
       chart.update("none");
     }
     renderer.render(scene, camera);
@@ -183,3 +201,4 @@
   </script>
 </body>
 </html>
+
