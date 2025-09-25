@@ -8,34 +8,21 @@
 
     /* LEFT: big chart area (white) */
     #chartPane{
-      flex:1;
-      display:flex;
-      flex-direction:column;
-      padding:16px;
-      gap:8px;
-      background:#fff;
-      min-width:0;
+      flex:1; display:flex; flex-direction:column;
+      padding:16px; gap:8px; background:#fff; min-width:0;
     }
     #chartPane h4{ margin:0; color:#222; }
     #legend{ margin:0; color:#555; font-size:13px; }
     #chartWrap{
-      flex:1;
-      background:#fff;
-      border:1px solid #e5e7eb;
-      border-radius:8px;
-      padding:10px;
-      overflow:hidden;
+      flex:1; background:#fff; border:1px solid #e5e7eb;
+      border-radius:8px; padding:10px; overflow:hidden;
     }
     #chart{ background:#fff; display:block; }
 
     /* RIGHT: fixed sidebar for 3D + controls */
     #right{
-      width:420px;
-      min-width:420px;
-      display:flex;
-      flex-direction:column;
-      background:#fff;
-      border-left:1px solid #ddd;
+      width:420px; min-width:420px; display:flex; flex-direction:column;
+      background:#fff; border-left:1px solid #ddd;
     }
     #canvasContainer{ flex:1; background:#eef; }
     #controls{ padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
@@ -45,14 +32,15 @@
 </head>
 <body>
 
-  <!-- LEFT (chart FIRST so it appears on the left) -->
+  <!-- LEFT (chart) -->
   <div id="chartPane">
     <h4>Simulated EEG / Affect Signals</h4>
     <div id="chartWrap">
       <canvas id="chart"></canvas>
     </div>
     <p id="legend">
-      Blue = Focus | Orange = Stress | Green = Engagement | Purple = Interest | Red = Excitement | Teal = Relaxation
+      Blue = Focus | Orange = Stress | Green = Engagement |
+      Purple = Interest | Red = Excitement | Teal = Relaxation
     </p>
   </div>
 
@@ -67,10 +55,9 @@
     </div>
   </div>
 
-  <!-- Three.js -->
+  <!-- Libraries -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
-  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <script>
@@ -97,17 +84,16 @@
   if (window.ResizeObserver) new ResizeObserver(resize3D).observe(container);
   window.addEventListener('resize', resize3D);
 
+  // Lights
   scene.add(new THREE.AmbientLight(0x888888));
   const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(5,10,5);
-  scene.add(light);
+  light.position.set(5,10,5); scene.add(light);
 
+  // Simple "headset/robot" stand-in
   const base = new THREE.Mesh(new THREE.BoxGeometry(1,0.2,1), new THREE.MeshStandardMaterial({color:0x2b6f77}));
   base.position.y = 0.1; scene.add(base);
-
   const arm = new THREE.Mesh(new THREE.BoxGeometry(0.3,1.5,0.3), new THREE.MeshStandardMaterial({color:0x1565c0}));
   arm.position.y = 0.75; base.add(arm);
-
   const gripper = new THREE.Mesh(new THREE.BoxGeometry(0.8,0.1,0.2), new THREE.MeshStandardMaterial({color:0x222222}));
   gripper.position.y = 0.9; arm.add(gripper);
 
@@ -125,18 +111,16 @@
     data: {
       labels: Array(MAX_POINTS).fill(""),
       datasets: [
-        { label: 'Focus',       data: Array(MAX_POINTS).fill(0.5), borderColor:'blue',      fill:false, tension:0.2 },
-        { label: 'Stress',      data: Array(MAX_POINTS).fill(0.5), borderColor:'orange',    fill:false, tension:0.2 },
-        { label: 'Engagement',  data: Array(MAX_POINTS).fill(0.5), borderColor:'green',     fill:false, tension:0.2 },
-        { label: 'Interest',    data: Array(MAX_POINTS).fill(0.5), borderColor:'#7e57c2',   fill:false, tension:0.2 }, // purple
-        { label: 'Excitement',  data: Array(MAX_POINTS).fill(0.5), borderColor:'#e53935',   fill:false, tension:0.2 }, // red
-        { label: 'Relaxation',  data: Array(MAX_POINTS).fill(0.5), borderColor:'#00897b',   fill:false, tension:0.2 }  // teal
+        { label: 'Focus',      data: Array(MAX_POINTS).fill(0.5), borderColor:'blue',      fill:false, tension:0.2 },
+        { label: 'Stress',     data: Array(MAX_POINTS).fill(0.5), borderColor:'orange',    fill:false, tension:0.2 },
+        { label: 'Engagement', data: Array(MAX_POINTS).fill(0.5), borderColor:'green',     fill:false, tension:0.2 },
+        { label: 'Interest',   data: Array(MAX_POINTS).fill(0.5), borderColor:'#7e57c2',   fill:false, tension:0.2 }, // purple
+        { label: 'Excitement', data: Array(MAX_POINTS).fill(0.5), borderColor:'#e53935',   fill:false, tension:0.2 }, // red
+        { label: 'Relaxation', data: Array(MAX_POINTS).fill(0.5), borderColor:'#00897b',   fill:false, tension:0.2 }  // teal
       ]
     },
     options: {
-      responsive: false,            // we size it to fill the card
-      maintainAspectRatio: false,
-      animation: false,
+      responsive: false, maintainAspectRatio: false, animation: false,
       scales: { y: { min: 0, max: 1 } },
       plugins: { legend: { display: true } }
     }
@@ -159,21 +143,16 @@
     document.getElementById('toggle').textContent = running ? "Pause Simulation" : "Resume Simulation";
   };
 
-  // Helper clamp
   const clamp01 = v => Math.max(0, Math.min(1, v));
 
-  // Simulate 6 signals (Focus, Stress, Engagement, Interest, Excitement, Relaxation)
+  // 6 signals: Focus, Stress, Engagement, Interest, Excitement, Relaxation
   function simulateSignals(t, difficulty){
-    // Base three (as before)
-    const focus  = clamp01(0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty);
-    const stress = clamp01(0.4 + 0.4*Math.cos(t*0.0015 + difficulty));
-    const engage = clamp01(0.6 + 0.2*Math.sin(t*0.001*difficulty + 2));
-
-    // New derived ones—loosely related to the above, just for demo
+    const focus      = clamp01(0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty);
+    const stress     = clamp01(0.4 + 0.4*Math.cos(t*0.0015 + difficulty));
+    const engage     = clamp01(0.6 + 0.2*Math.sin(t*0.001*difficulty + 2));
     const interest   = clamp01(0.5 + 0.25*Math.sin(t*0.0013 + difficulty*0.5) + 0.10*(engage - stress));
     const excitement = clamp01(0.5 + 0.35*Math.sin(t*0.003 + 1.2) + 0.05*difficulty);
-    const relaxation = clamp01(0.6 - 0.30*stress + 0.10*(1 - focus)); // calmer when stress low & focus moderate
-
+    const relaxation = clamp01(0.6 - 0.30*stress + 0.10*(1 - focus));
     return [focus, stress, engage, interest, excitement, relaxation];
   }
 
@@ -201,4 +180,5 @@
   </script>
 </body>
 </html>
+
 
