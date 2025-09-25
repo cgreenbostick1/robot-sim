@@ -5,15 +5,55 @@
   <title>Human-Robot EEG Simulation</title>
   <style>
     body { margin:0; display:flex; height:100vh; font-family:Arial,Helvetica,sans-serif; }
-    #left { flex: 1; display:flex; flex-direction:column; min-width:0; }
+
+    /* LEFT: big chart pane */
+    #chartPane {
+      flex: 1;
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      padding:10px;
+      background:#174f96; /* blue side */
+      color:#fff;
+      gap:8px;
+    }
+    #chartPane h4 { margin:0 0 4px 0; }
+    #chartWrap {
+      flex:1;
+      background:#fff;   /* chart sits on white for contrast */
+      border-radius:6px;
+      padding:10px;
+      overflow:hidden;
+    }
+    #legend { font-size:13px; color:#dfe8ff; }
+
+    /* RIGHT: smaller sidebar for 3D + controls */
+    #right {
+      width:420px;
+      display:flex;
+      flex-direction:column;
+      background:#fff;
+      border-left:1px solid #ddd;
+    }
     #canvasContainer { flex: 1; background:#eef; }
     #controls { padding:10px; background:#f4f4f4; border-top:1px solid #ddd; }
-    #chartContainer { width:420px; padding:10px; background:#fff; border-left:1px solid #ddd; }
+
     canvas { display:block; }
   </style>
 </head>
 <body>
-  <div id="left">
+
+  <!-- LEFT (big): Chart -->
+  <div id="chartPane">
+    <h4>Simulated EEG / Affect Signals</h4>
+    <div id="chartWrap">
+      <canvas id="chart"></canvas>
+    </div>
+    <p id="legend">Blue = Focus &nbsp;|&nbsp; Orange = Stress &nbsp;|&nbsp; Green = Engagement</p>
+  </div>
+
+  <!-- RIGHT (small): 3D + controls -->
+  <div id="right">
     <div id="canvasContainer"></div>
     <div id="controls">
       <label>Task Difficulty:
@@ -23,21 +63,14 @@
     </div>
   </div>
 
-  <div id="chartContainer">
-    <h4>Simulated EEG / Affect Signals</h4>
-    <canvas id="chart"></canvas>
-    <p style="font-size:13px;color:#555;">Blue=Focus | Orange=Stress | Green=Engagement</p>
-  </div>
-
   <!-- Three.js -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
-  <!-- Try to load OrbitControls (optional). If it fails, we’ll run without it. -->
   <script src="https://cdn.jsdelivr.net/npm/three@0.152.2/examples/js/controls/OrbitControls.js"></script>
   <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 
   <script>
-  // --- Setup 3D Scene ---
+  /* --------------------- THREE.JS (RIGHT SIDEBAR) --------------------- */
   const container = document.getElementById('canvasContainer');
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
@@ -46,20 +79,20 @@
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
 
-  // Camera & background (UPDATED)
+  // Camera & background
   camera.position.set(4, 3, 6);
   camera.lookAt(0, 1, 0);
   renderer.setClearColor(0xf0f0f0);
 
-  function resize(){
+  function resize3D(){
     const w = container.clientWidth, h = container.clientHeight || 1;
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   }
-  resize();
-  if (window.ResizeObserver) new ResizeObserver(resize).observe(container);
-  window.addEventListener('resize', resize);
+  resize3D();
+  if (window.ResizeObserver) new ResizeObserver(resize3D).observe(container);
+  window.addEventListener('resize', resize3D);
 
   // Lights
   scene.add(new THREE.AmbientLight(0x888888));
@@ -67,39 +100,38 @@
   light.position.set(5,10,5);
   scene.add(light);
 
-  // --- Robot (REPLACED with higher-contrast version) ---
+  // Robot
   const base = new THREE.Mesh(
     new THREE.BoxGeometry(1, 0.2, 1),
-    new THREE.MeshStandardMaterial({ color: 0x2b6f77 }) // teal
+    new THREE.MeshStandardMaterial({ color: 0x2b6f77 })
   );
   base.position.y = 0.1;
   scene.add(base);
 
   const arm = new THREE.Mesh(
     new THREE.BoxGeometry(0.3, 1.5, 0.3),
-    new THREE.MeshStandardMaterial({ color: 0x1565c0 }) // strong blue
+    new THREE.MeshStandardMaterial({ color: 0x1565c0 })
   );
   arm.position.y = 0.75;
   base.add(arm);
 
   const gripper = new THREE.Mesh(
     new THREE.BoxGeometry(0.8, 0.1, 0.2),
-    new THREE.MeshStandardMaterial({ color: 0x222222 }) // dark for contrast
+    new THREE.MeshStandardMaterial({ color: 0x222222 })
   );
   gripper.position.y = 0.9;
   arm.add(gripper);
 
-  // OrbitControls if available (won’t crash if the script failed to load)
   if (THREE.OrbitControls) {
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     (function tick(){ controls.update(); requestAnimationFrame(tick); })();
   }
 
-  // --- EEG Chart Setup ---
-  const ctx = document.getElementById('chart').getContext('2d');
+  /* --------------------- CHART (LEFT BIG PANE) --------------------- */
+  const chartCanvas = document.getElementById('chart');
   const MAX_POINTS = 60;
-  const chart = new Chart(ctx, {
+  const chart = new Chart(chartCanvas.getContext('2d'), {
     type: 'line',
     data: {
       labels: Array(MAX_POINTS).fill(""),
@@ -110,7 +142,7 @@
       ]
     },
     options: {
-      responsive: true,
+      responsive: false,             // we'll size it ourselves to fill the pane
       maintainAspectRatio: false,
       animation: false,
       scales: { y: { min: 0, max: 1 } },
@@ -119,15 +151,17 @@
   });
 
   function sizeChartCanvas(){
-    const c = document.getElementById('chart');
-    c.width  = document.getElementById('chartContainer').clientWidth - 20;
-    c.height = 300;
+    const wrap = document.getElementById('chartWrap');
+    // fill the white card
+    chartCanvas.width  = wrap.clientWidth - 20;
+    chartCanvas.height = wrap.clientHeight - 20;
     chart.resize();
   }
   sizeChartCanvas();
+  if (window.ResizeObserver) new ResizeObserver(sizeChartCanvas).observe(document.getElementById('chartWrap'));
   window.addEventListener('resize', sizeChartCanvas);
 
-  // --- Simulation Logic ---
+  /* --------------------- SIMULATION --------------------- */
   let running = true;
   document.getElementById('toggle').onclick = () => {
     running = !running;
@@ -163,5 +197,3 @@
   </script>
 </body>
 </html>
-
-
