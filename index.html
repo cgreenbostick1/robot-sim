@@ -71,7 +71,7 @@
   renderer.setPixelRatio(window.devicePixelRatio || 1);
   container.appendChild(renderer.domElement);
 
-  // Blue background to match sidebar
+  // Blue background to match sidebar (so if nothing renders you still see blue, not black)
   renderer.setClearColor(0x174f96);
 
   camera.position.set(0, 1.2, 4);
@@ -87,43 +87,68 @@
   if (window.ResizeObserver) new ResizeObserver(resize3D).observe(container);
   window.addEventListener('resize', resize3D);
 
-  // Lights
-  scene.add(new THREE.AmbientLight(0x888888));
-  const keyLight = new THREE.DirectionalLight(0xffffff, 1.0); keyLight.position.set(4, 6, 8); scene.add(keyLight);
-  const rimLight = new THREE.DirectionalLight(0x99ccff, 0.6); rimLight.position.set(-6, 4, -3); scene.add(rimLight);
+  // Lights (brighter so the model isn't too dark)
+  scene.add(new THREE.AmbientLight(0x999999));
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.1); keyLight.position.set(4, 6, 8); scene.add(keyLight);
+  const rimLight = new THREE.DirectionalLight(0x9bd1ff, 0.7); rimLight.position.set(-6, 4, -3); scene.add(rimLight);
 
-  // ---------- Stylized 3D Headset ----------
+  // ---------- Stylized 3D Headset (safe primitives only) ----------
   const headset = new THREE.Group(); scene.add(headset);
   const metal = new THREE.MeshStandardMaterial({ color: 0x222428, metalness: 0.6, roughness: 0.35 });
   const matte = new THREE.MeshStandardMaterial({ color: 0x2b6f77, metalness: 0.2, roughness: 0.8 });
   const foam  = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.1, roughness: 0.9 });
 
-  // Headband
-  const band = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.08, 16, 100, Math.PI), metal);
-  band.rotation.x = Math.PI / 2; band.position.y = 1.2; headset.add(band);
-  // Cushion
-  const cushion = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.1), foam);
-  cushion.position.set(0, 1.25, 0); headset.add(cushion);
-  // Ear cups + pads
-  const cupGeom = new THREE.CylinderGeometry(0.45, 0.45, 0.25, 24);
-  const cupL = new THREE.Mesh(cupGeom, metal); cupL.rotation.z = Math.PI / 2; cupL.position.set(-0.95, 0.7, 0); headset.add(cupL);
-  const padL = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.08, 12, 24), foam); padL.rotation.y = Math.PI / 2; padL.position.set(-0.95, 0.7, 0); headset.add(padL);
-  const cupR = cupL.clone(); cupR.position.x = 0.95; headset.add(cupR);
-  const padR = padL.clone(); padR.position.x = 0.95; headset.add(padR);
-  // Arms
-  const armGeom = new THREE.BoxGeometry(0.08, 0.6, 0.08);
-  const armL = new THREE.Mesh(armGeom, matte); armL.position.set(-0.95, 1.0, 0); headset.add(armL);
-  const armR = armL.clone(); armR.position.x = 0.95; headset.add(armR);
-  // Mic boom
-  const mic = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.8, 4, 8), matte);
-  mic.rotation.z = -Math.PI / 3; mic.position.set(0.2, 0.55, 0.35); headset.add(mic);
-  // Simple stand
-  const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.1, 32), new THREE.MeshStandardMaterial({ color: 0x0e2f5e, metalness: 0.1, roughness: 0.9 }));
-  standBase.position.y = 0.05; scene.add(standBase);
-  const standPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 16), metal);
-  standPost.position.y = 0.6; scene.add(standPost);
+  try {
+    // Headband: half torus
+    const band = new THREE.Mesh(new THREE.TorusGeometry(1.2, 0.08, 16, 100, Math.PI), metal);
+    band.rotation.x = Math.PI / 2; band.position.y = 1.2; headset.add(band);
 
-  /* --------------------- CHART (LEFT) --------------------- */
+    // Top cushion
+    const cushion = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.15, 0.1), foam);
+    cushion.position.set(0, 1.25, 0); headset.add(cushion);
+
+    // Ear cups + pads
+    const cupGeom = new THREE.CylinderGeometry(0.45, 0.45, 0.25, 24);
+    const cupL = new THREE.Mesh(cupGeom, metal); cupL.rotation.z = Math.PI / 2; cupL.position.set(-0.95, 0.7, 0); headset.add(cupL);
+    const padL = new THREE.Mesh(new THREE.TorusGeometry(0.45, 0.08, 12, 24), foam); padL.rotation.y = Math.PI / 2; padL.position.set(-0.95, 0.7, 0); headset.add(padL);
+    const cupR = cupL.clone(); cupR.position.x = 0.95; headset.add(cupR);
+    const padR = padL.clone(); padR.position.x = 0.95; headset.add(padR);
+
+    // Arms
+    const armGeom = new THREE.BoxGeometry(0.08, 0.6, 0.08);
+    const armL = new THREE.Mesh(armGeom, matte); armL.position.set(-0.95, 1.0, 0); headset.add(armL);
+    const armR = armL.clone(); armR.position.x = 0.95; headset.add(armR);
+
+    // Mic boom (safe: cylinder + sphere tip)
+    const micGroup = new THREE.Group(); headset.add(micGroup);
+    const micRod = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.9, 16), matte);
+    micRod.rotation.z = -Math.PI / 3; micRod.position.set(0.2, 0.55, 0.35); micGroup.add(micRod);
+    const micTip = new THREE.Mesh(new THREE.SphereGeometry(0.06, 16, 12), metal);
+    micTip.position.set(0.2 + 0.45*Math.cos(Math.PI/3), 0.55 - 0.45*Math.sin(Math.PI/3), 0.35); micGroup.add(micTip);
+
+    // Simple stand
+    const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 0.9, 0.1, 32), new THREE.MeshStandardMaterial({ color: 0x0e2f5e, metalness: 0.1, roughness: 0.9 }));
+    standBase.position.y = 0.05; scene.add(standBase);
+    const standPost = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.1, 16), metal);
+    standPost.position.y = 0.6; scene.add(standPost);
+
+    // Save mic group for animation
+    window.__micGroup = micGroup;
+
+  } catch (e) {
+    // Fallback (spinning cube) if any geometry causes trouble
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), new THREE.MeshStandardMaterial({ color: 0xff5555 }));
+    scene.add(cube);
+    headset.add(cube);
+  }
+
+  if (THREE.OrbitControls) {
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    (function tick(){ controls.update(); requestAnimationFrame(tick); })();
+  }
+
+  /* --------------------- CHART (LEFT BIG PANE) --------------------- */
   const chartCanvas = document.getElementById('chart');
   const MAX_POINTS = 60;
   const chart = new Chart(chartCanvas.getContext('2d'), {
@@ -134,9 +159,9 @@
         { label: 'Focus',      data: Array(MAX_POINTS).fill(0.5), borderColor:'blue',      fill:false, tension:0.2 },
         { label: 'Stress',     data: Array(MAX_POINTS).fill(0.5), borderColor:'orange',    fill:false, tension:0.2 },
         { label: 'Engagement', data: Array(MAX_POINTS).fill(0.5), borderColor:'green',     fill:false, tension:0.2 },
-        { label: 'Interest',   data: Array(MAX_POINTS).fill(0.5), borderColor:'#7e57c2',   fill:false, tension:0.2 }, // purple
-        { label: 'Excitement', data: Array(MAX_POINTS).fill(0.5), borderColor:'#e53935',   fill:false, tension:0.2 }, // red
-        { label: 'Relaxation', data: Array(MAX_POINTS).fill(0.5), borderColor:'#00897b',   fill:false, tension:0.2 }  // teal
+        { label: 'Interest',   data: Array(MAX_POINTS).fill(0.5), borderColor:'#7e57c2',   fill:false, tension:0.2 },
+        { label: 'Excitement', data: Array(MAX_POINTS).fill(0.5), borderColor:'#e53935',   fill:false, tension:0.2 },
+        { label: 'Relaxation', data: Array(MAX_POINTS).fill(0.5), borderColor:'#00897b',   fill:false, tension:0.2 }
       ]
     },
     options: {
@@ -157,9 +182,8 @@
   window.addEventListener('resize', sizeChart);
 
   /* --------------------- SIGNAL SIMULATION --------------------- */
-  function clamp01(v){ return Math.max(0, Math.min(1, v)); }
+  const clamp01 = v => Math.max(0, Math.min(1, v));
 
-  // 6 signals: Focus, Stress, Engagement, Interest, Excitement, Relaxation
   function simulateSignals(t, difficulty){
     const focus      = clamp01(0.5 + 0.3*Math.sin(t*0.002) - 0.05*difficulty);
     const stress     = clamp01(0.4 + 0.4*Math.cos(t*0.0015 + difficulty));
@@ -180,12 +204,11 @@
   function animate(time){
     requestAnimationFrame(animate);
 
-    // Headset idle animation
+    // Headset idle animation (spin + gentle bob + mic wobble)
     const t = time * 0.001;
-    headset.rotation.y = t * 0.6;                          // slow spin
-    headset.position.y = 0.05 + Math.sin(t*1.5) * 0.03;    // gentle bob
-    // mic tiny waggle
-    mic.rotation.y = -Math.PI/12 + Math.sin(t*2.2) * 0.08;
+    headset.rotation.y = t * 0.6;
+    headset.position.y = 0.05 + Math.sin(t*1.5) * 0.03;
+    if (window.__micGroup) window.__micGroup.rotation.y = Math.sin(t*2.2) * 0.12;
 
     if (running){
       const diff = parseFloat(document.getElementById('difficulty').value);
